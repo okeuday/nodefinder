@@ -40,7 +40,7 @@ defmodule Nodefinder.Mixfile do
   defp package do
     [files: ~w(src doc rebar.config AUTHORS LICENSE ChangeLog README.markdown),
      maintainers: ["Michael Truog", "Paul Mineiro"],
-     licenses: ["BSD"],
+     licenses: ["MIT"],
      links: %{"GitHub" => "https://github.com/okeuday/nodefinder"}]
    end
 end
