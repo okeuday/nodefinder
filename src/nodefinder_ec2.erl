@@ -349,13 +349,17 @@ process_or(L, EC2Data, Type) ->
 process([{'OR', L}], EC2Instances, group) ->
     % output list of private dns names
     lists:foldl(fun(Reservation, Hosts) ->
-        {_, InstancesSet} = lists:keyfind(instances_set, 1, Reservation),
+        {_, InstancesSet0} = lists:keyfind(instances_set, 1, Reservation),
+        Filter = fun(I) -> not offline(I) end,
+        InstancesSet = lists:filter(Filter, InstancesSet0),
         update_from_instances_set(InstancesSet, Hosts)
     end, [], process_or(L, lists:usort(EC2Instances), group));
 process([{'OR', L}], EC2Instances, tag) ->
     % output list of instance ids
     EC2Tags = lists:foldl(fun(Reservation, D0) ->
-        {_, InstancesSet} = lists:keyfind(instances_set, 1, Reservation),
+        {_, InstancesSet0} = lists:keyfind(instances_set, 1, Reservation),
+        Filter = fun(I) -> not offline(I) end,
+        InstancesSet = lists:filter(Filter, InstancesSet0),
         lists:foldl(fun(Instance, D1) ->
             {_, Id} = lists:keyfind(instance_id, 1, Instance),
             {_, TagsSet} = lists:keyfind(tag_set, 1, Instance),
@@ -503,6 +507,24 @@ pforeach(_, []) ->
 pforeach(F, L) ->
     [erlang:spawn_link(fun() -> F(E) end) || E <- L],
     ok.
+
+
+offline(Instance) ->
+    case lists:keyfind(instance_state, 1, Instance) of
+        {_, InstanceState} ->
+        	case lists:keyfind(name, 1, InstanceState) of
+				{name, S} when (S =:= "stopped") 
+					orelse (S =:= "stopping")
+					orelse (S =:= "shutting-down") 
+					orelse (S =:= "terminated") 
+					orelse (S =:= "pending") 
+					orelse (S =:= "rebooting") -> 
+						 true;
+					_ -> false
+			end;
+        _ -> false
+    end.
+
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -739,5 +761,27 @@ merge1_test() ->
     TaggedInstances = process(Tags, EC2Instances, tag),
     ["instanceA"] = TaggedInstances,
     ok.
+
+
+merge_filter1_test() ->
+    TagsInput = [{'AND', [{"foobear", "1"}, "foobarish"]}],
+    {ok, TagsExpressionTree} = preprocess(TagsInput, tag),
+    Tags = TagsExpressionTree,
+    EC2Instances = [[{instances_set,
+                      [[{instance_id, "instanceB"},
+                        {tag_set,
+                         [[{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceA"},
+                        {instance_state,
+                         [{code, "1"},
+                          {name, "terminated"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}]],
+    TaggedInstances = process(Tags, EC2Instances, tag),
+    [] = TaggedInstances,
+    ok.
+
 
 -endif.
