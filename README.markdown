@@ -81,8 +81,7 @@ Functionality details:
 
 * The same Erlang distributed node name is used
   (separate Erlang VMs must be on separate EC2 instances)
-* Connections between availability zones are not supported due to the
-  high latency
+* Connections between regions are not supported due to the high latency
 
 Add security group TCP rules for:
 
