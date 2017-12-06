@@ -349,17 +349,15 @@ process_or(L, EC2Data, Type) ->
 process([{'OR', L}], EC2Instances, group) ->
     % output list of private dns names
     lists:foldl(fun(Reservation, Hosts) ->
-        {_, InstancesSet0} = lists:keyfind(instances_set, 1, Reservation),
-        Filter = fun(I) -> not offline(I) end,
-        InstancesSet = lists:filter(Filter, InstancesSet0),
-        update_from_instances_set(InstancesSet, Hosts)
+        {_, InstancesSet} = lists:keyfind(instances_set, 1, Reservation),
+        InstancesSetAlive = lists:filter(fun instance_alive/1, InstancesSet),
+        update_from_instances_set(InstancesSetAlive, Hosts)
     end, [], process_or(L, lists:usort(EC2Instances), group));
 process([{'OR', L}], EC2Instances, tag) ->
     % output list of instance ids
     EC2Tags = lists:foldl(fun(Reservation, D0) ->
-        {_, InstancesSet0} = lists:keyfind(instances_set, 1, Reservation),
-        Filter = fun(I) -> not offline(I) end,
-        InstancesSet = lists:filter(Filter, InstancesSet0),
+        {_, InstancesSet} = lists:keyfind(instances_set, 1, Reservation),
+        InstancesSetAlive = lists:filter(fun instance_alive/1, InstancesSet),
         lists:foldl(fun(Instance, D1) ->
             {_, Id} = lists:keyfind(instance_id, 1, Instance),
             {_, TagsSet} = lists:keyfind(tag_set, 1, Instance),
@@ -371,7 +369,7 @@ process([{'OR', L}], EC2Instances, tag) ->
                                    lists:umerge(OldTagL, InitialValue)
                                end, InitialValue, D2)
             end, D1, TagsSet)
-        end, D0, InstancesSet)
+        end, D0, InstancesSetAlive)
     end, orddict:new(), EC2Instances),
     [Id || {Id, _} <- orddict:to_list(process_or(L, EC2Tags, tag))].
 
@@ -508,21 +506,17 @@ pforeach(F, L) ->
     [erlang:spawn_link(fun() -> F(E) end) || E <- L],
     ok.
 
-
-offline(Instance) ->
+instance_alive(Instance) ->
     case lists:keyfind(instance_state, 1, Instance) of
-        {_, InstanceState} ->
-        	case lists:keyfind(name, 1, InstanceState) of
-				{name, S} when (S =:= "stopped") 
-					orelse (S =:= "stopping")
-					orelse (S =:= "shutting-down") 
-					orelse (S =:= "terminated") 
-					orelse (S =:= "pending") 
-					orelse (S =:= "rebooting") -> 
-						 true;
-					_ -> false
-			end;
-        _ -> false
+        {instance_state, InstanceState} ->
+            case lists:keyfind(name, 1, InstanceState) of
+                {name, "running"} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            false
     end.
 
 
@@ -532,29 +526,45 @@ offline(Instance) ->
 logic_case1_tags() ->
     [[{instances_set,
        [[{instance_id, "A1"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "A"}, {value, "A"}]]}],
         [{instance_id, "A2"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "A"}, {value, "B"}]]}]]}],
      [{instances_set,
        [[{instance_id, "B1"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "B"}, {value, "A"}]]}]]}],
      [{instances_set,
        [[{instance_id, "C1"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "C"}, {value, "A"}]]}],
         [{instance_id, "C2"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "C"}, {value, "B"}]]}],
         [{instance_id, "C3"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "C"}, {value, "C"}]]}],
         [{instance_id, "C4"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "C"}, {value, "C"}]]}],
         [{instance_id, "C5"},
+         {instance_state,
+          [{name, "running"}]},
          {tag_set,
           [[{key, "C"}, {value, "C"}]]}]]}]].
 
@@ -572,41 +582,57 @@ logic_case2_groups() ->
        [[{group_set,
           [[{group_name, "A"}],
            [{group_name, "A/A"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "A1"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "A"}],
            [{group_name, "A/B"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "A2"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "B"}],
            [{group_name, "B/A"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "B1"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "C"}],
            [{group_name, "C/A"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "C1"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "C"}],
            [{group_name, "C/B"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "C2"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "C"}],
            [{group_name, "C/C"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "C3"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "C"}],
            [{group_name, "C/C"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "C4"}]]}],
      [{instances_set,
        [[{group_set,
           [[{group_name, "C"}],
            [{group_name, "C/C"}]]},
+         {instance_state,
+          [{name, "running"}]},
          {private_dns_name, "C5"}]]}]].
 
 logic_case2_groups_preprocess(GroupsInput) ->
@@ -751,10 +777,14 @@ merge1_test() ->
     Tags = TagsExpressionTree,
     EC2Instances = [[{instances_set,
                       [[{instance_id, "instanceB"},
+                        {instance_state,
+                         [{name, "running"}]},
                         {tag_set,
                          [[{key, "foobarish"}, {value, ""}]]}]]}],
                     [{instances_set,
                       [[{instance_id, "instanceA"},
+                        {instance_state,
+                         [{name, "running"}]},
                         {tag_set,
                          [[{key, "foobear"}, {value, "1"}],
                           [{key, "foobarish"}, {value, ""}]]}]]}]],
@@ -769,19 +799,54 @@ merge_filter1_test() ->
     Tags = TagsExpressionTree,
     EC2Instances = [[{instances_set,
                       [[{instance_id, "instanceB"},
+                        {instance_state,
+                         [{name, "running"}]},
                         {tag_set,
                          [[{key, "foobarish"}, {value, ""}]]}]]}],
                     [{instances_set,
                       [[{instance_id, "instanceA"},
                         {instance_state,
-                         [{code, "1"},
-                          {name, "terminated"}]},
+                         [{name, "stopped"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceC"},
+                        {instance_state,
+                         [{name, "stopping"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceD"},
+                        {instance_state,
+                         [{name, "shutting-down"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceE"},
+                        {instance_state,
+                         [{name, "terminated"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceF"},
+                        {instance_state,
+                         [{name, "pending"}]},
+                        {tag_set,
+                         [[{key, "foobear"}, {value, "1"}],
+                          [{key, "foobarish"}, {value, ""}]]}]]}],
+                    [{instances_set,
+                      [[{instance_id, "instanceG"},
+                        {instance_state,
+                         [{name, "rebooting"}]},
                         {tag_set,
                          [[{key, "foobear"}, {value, "1"}],
                           [{key, "foobarish"}, {value, ""}]]}]]}]],
     TaggedInstances = process(Tags, EC2Instances, tag),
     [] = TaggedInstances,
     ok.
-
 
 -endif.
