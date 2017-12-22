@@ -47,6 +47,8 @@
         connect :: visible | hidden
     }).
 
+-include("nodefinder_logging.hrl").
+
 -define(NULL_EXPRESSION, [{'OR', []}]).
 
 %%%------------------------------------------------------------------------
@@ -155,7 +157,7 @@ handle_call(discover, _From, State) ->
         {error, {http_error, 503, "Service Unavailable", _}} ->
             {reply, {error, ec2_unavailable}, State};
         {error, {http_error, 500, "Internal Server Error", XMLBinary}} ->
-            error_logger:error_msg("ec2 error: ~s~n", [XMLBinary]),
+            ?LOG_ERROR("ec2 error: ~s~n", [XMLBinary]),
             {reply, {error, ec2_failed}, State};
         {error, _} = Error ->
             {stop, Error, {error, discover_failed}, State}
