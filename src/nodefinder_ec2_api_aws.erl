@@ -101,7 +101,7 @@ aws_request4_no_update(Method, Protocol, Host, Port, Path, Params, Service, #aws
     aws_request_form(Method, Protocol, Host, Port, Path, Query, SignedHeaders, Config).
 
 aws_region_from_host(Host) ->
-    case nodefinder_string:lexemes(Host, ".") of
+    case nodefinder_string:split(Host, ".") of
         %% the aws endpoint can vary depending on the region
         %% we need to account for that:
         %%  us-west-2: s3.us-west-2.amazonaws.com

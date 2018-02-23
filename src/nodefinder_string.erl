@@ -5,9 +5,9 @@
 
 %% external interface
 -export([lowercase/1,
-         uppercase/1,
-         lexemes/2,
-         pad/2]).
+         pad/2,
+         split/2,
+         uppercase/1]).
 
 -include("nodefinder.hrl").
 
@@ -41,21 +41,29 @@ uppercase(String)
     erlang:list_to_binary(string:to_upper(erlang:binary_to_list(String))).
 -endif.
 
--spec lexemes(String :: string() | binary(),
-              SeparatorList :: string()) ->
-    string() | binary().
+-spec split(String :: string() | binary(),
+            SearchPattern :: string() | binary() | list(string() | binary())) ->
+    list(string() | binary()).
 
 -ifdef(ERLANG_OTP_VERSION_20_FEATURES).
-lexemes(String, SeparatorList) ->
-    string:lexemes(String, SeparatorList).
+split(String, SearchPattern) ->
+    string:split(String, SearchPattern, all).
 -else.
-lexemes(String, SeparatorList)
+split(String, SearchPattern)
     when is_list(String) ->
-    string:tokens(String, SeparatorList);
-lexemes(String)
+    [erlang:binary_to_list(S)
+     || S <- split(erlang:list_to_binary(String), SearchPattern)];
+split(String, SearchPattern)
     when is_binary(String) ->
-    erlang:list_to_binary(string:tokens(erlang:binary_to_list(String),
-                                        SeparatorList)).
+    Pattern = if
+        is_binary(SearchPattern) ->
+            [SearchPattern];
+        is_integer(hd(SearchPattern)) ->
+            [erlang:list_to_binary(SearchPattern)];
+        is_list(SearchPattern) ->
+            [erlang:iolist_to_binary(S) || S <- SearchPattern]
+    end,
+    binary:split(String, Pattern, [global]).
 -endif.
 
 -spec pad(String :: string() | binary(),
