@@ -157,7 +157,7 @@ canonical_headers(Headers) ->
     Normalized = [{nodefinder_string:lowercase(Name), trimall(Value)} || {Name, Value} <- Headers],
     Sorted = lists:keysort(1, Normalized),
     Canonical = [[Name, $:, Value, $\n] || {Name, Value} <- Sorted],
-    Signed = lists:join([Name || {Name, _} <- Sorted], $;),
+    Signed = lists:join($;, [Name || {Name, _} <- Sorted]),
     {Canonical, Signed}.
 
 %% @doc calculate canonical query string out of query params and according to v4 documentation
@@ -166,11 +166,12 @@ canonical_query_string([]) ->
 canonical_query_string(Params) ->
     Normalized = [{nodefinder_ec2_api_http:url_encode(Name), nodefinder_ec2_api_http:url_encode(nodefinder_ec2_api_http:value_to_string(Value))} || {Name, Value} <- Params],
     Sorted = lists:keysort(1, Normalized),
-    lists:join([case Value of
+    lists:join($&,
+               [case Value of
                     [] -> [Key, "="];
                     _ -> [Key, "=", Value]
                 end
-                || {Key, Value} <- Sorted, Value =/= none, Value =/= undefined], $&).
+                || {Key, Value} <- Sorted, Value =/= none, Value =/= undefined]).
 
 trimall(Value) ->
     %% TODO - remove excess internal whitespace in header values
